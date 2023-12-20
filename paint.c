@@ -14,12 +14,17 @@ typedef struct {
     char pen;
 } Canvas;
 
+typedef struct command Command;
+struct command{
+    char *str;
+    size_t bufsize;
+    Command *next;
+};
+
 // Structure for history (2-D array)
 typedef struct {
-    size_t max_history;
+    Command *begin;
     size_t bufsize;
-    size_t hsize;
-    char **commands;
 } History;
 
 // functions for Canvas type
@@ -35,7 +40,7 @@ void clear_screen(void);
 
 // enum for interpret_command results
 // interpret_command の結果をより詳細に分割
-typedef enum res{ EXIT, LINE, UNDO, SAVE, UNKNOWN, ERRNONINT, ERRLACKARGS} Result;
+typedef enum res{ EXIT, LINE, UNDO, SAVE, UNKNOWN, ERRNONINT, ERRLACKARGS, NOCOMMAND} Result;
 // Result 型に応じて出力するメッセージを返す
 char *strresult(Result res);
 
@@ -44,18 +49,14 @@ void draw_line(Canvas *c, const int x0, const int y0, const int x1, const int y1
 Result interpret_command(const char *command, History *his, Canvas *c);
 void save_history(const char *filename, History *his);
 
+Command *push_command(History *his, const char *str);
 
 int main(int argc, char **argv) {
     //for history recording
-    const int max_history = 5;
     const int bufsize = 1000;
-    History his = (History){.max_history = max_history, .bufsize = bufsize, .hsize = 0};
-    
-    his.commands = (char**)malloc(his.max_history * sizeof(char*));
-    char* tmp = (char*) malloc(his.max_history * his.bufsize * sizeof(char));
-    for (int i = 0 ; i < his.max_history ; i++)
-	his.commands[i] = tmp + (i * his.bufsize);
-    
+
+    History his = (History){.begin = NULL, .bufsize = bufsize};
+
     int width;
     int height;
     if (argc != 3){
@@ -85,11 +86,9 @@ int main(int argc, char **argv) {
 
     printf("\n"); // required especially for windows env
     
-    while (his.hsize < his.max_history) {
-	size_t hsize = his.hsize;
-	size_t bufsize = his.bufsize;
+    while (1) {
 	print_canvas(c);
-	printf("%zu > ", hsize);
+	printf("* > ");
     // stdinからの入力を受け取りbufに格納する
 	if(fgets(buf, bufsize, stdin) == NULL) break;
 	
@@ -102,8 +101,7 @@ int main(int argc, char **argv) {
 	printf("%s\n",strresult(r));
 	// LINEの場合はHistory構造体に入れる
 	if (r == LINE) {
-	    strcpy(his.commands[his.hsize], buf);
-	    his.hsize++;	    
+	    push_command(&his, buf); 
 	}
 	rewind_screen(2); // command results
 	clear_command(); // command itself
@@ -191,6 +189,7 @@ void clear_screen(void) {
 int max(const int a, const int b) {
     return (a > b) ? a : b;
 }
+
 void draw_line(Canvas *c, const int x0, const int y0, const int x1, const int y1) {
     const int width = c->width;
     const int height = c->height;
@@ -217,9 +216,9 @@ void save_history(const char *filename, History *his) {
 	fprintf(stderr, "error: cannot open %s.\n", filename);
 	return;
     }
-    
-    for (int i = 0; i < his->hsize; i++) {
-	fprintf(fp, "%s", his->commands[i]);
+
+    for (Command *p = his->begin; p != NULL; p = p->next) {
+        fprintf(fp, "%s", p->str);
     }
     
     fclose(fp);
@@ -265,11 +264,16 @@ Result interpret_command(const char *command, History *his, Canvas *c) {
     
     if (strcmp(s, "undo") == 0) {
 	reset_canvas(c);
-	if (his->hsize != 0){
-	    for (int i = 0; i < his->hsize - 1; i++) {
-		interpret_command(his->commands[i], his, c);
+    Command *p = his->begin;
+    if (p == NULL) {
+        return NOCOMMAND;
+    } else {
+        Command *q = NULL;
+	    while (p->next != NULL) {
+		interpret_command(p->str, his, c);
+        q = p;
+        p = p->next;
 	    }
-	    his->hsize--;
 	}
 	return UNDO;
     }
@@ -297,6 +301,28 @@ char *strresult(Result res) {
 	return "Non-int value is included";
     case ERRLACKARGS:
 	return "Too few arguments";
+    case NOCOMMAND:
+    return "No command in history";
     }
     return NULL;
+}
+
+Command *push_command(History *his, const char *str) {
+    Command *c = (Command *)malloc(sizeof(Command));
+    char *s = (char *)malloc(his->bufsize);
+    strcpy(s, str);
+
+    *c = (Command){ .str = s, .bufsize = his->bufsize, .next = NULL};
+
+    Command *p = his->begin;
+
+    if(p == NULL) {
+        his->begin = c;
+    } else {
+        while(p->next != NULL){
+            p = p->next;
+        }
+        p->next = c;
+    }
+    return c;
 }
