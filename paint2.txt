@@ -1,0 +1,5 @@
+rect 10 5 60 30
+circle 25 14 5
+circle 55 14 5
+line 25 30 50 30
+line 50 30 53 27
