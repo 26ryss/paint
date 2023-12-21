@@ -5,6 +5,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <errno.h> // for error catch
+#include <math.h>
 
 // Structure for canvas
 typedef struct {
@@ -40,12 +41,14 @@ void clear_screen(void);
 
 // enum for interpret_command results
 // interpret_command の結果をより詳細に分割
-typedef enum res{ EXIT, LINE, UNDO, SAVE, UNKNOWN, ERRNONINT, ERRLACKARGS, NOCOMMAND} Result;
+typedef enum res{ EXIT, LINE, RECT, CIRCLE, UNDO, SAVE, UNKNOWN, ERRNONINT, ERRLACKARGS, NOCOMMAND} Result;
 // Result 型に応じて出力するメッセージを返す
 char *strresult(Result res);
 
 int max(const int a, const int b);
 void draw_line(Canvas *c, const int x0, const int y0, const int x1, const int y1);
+void draw_rect(Canvas *c, const int x0, const int y0, const int width, const int height);
+void draw_circle(Canvas *c, const int x0, const int y0, const int r);
 Result interpret_command(const char *command, History *his, Canvas *c);
 void save_history(const char *filename, History *his);
 
@@ -206,6 +209,31 @@ void draw_line(Canvas *c, const int x0, const int y0, const int x1, const int y1
     }
 }
 
+void draw_rect(Canvas *c, const int x0, const int y0, const int width, const int height) {
+    const int x1 = x0 + width;
+    const int y1 = y0 + height;
+    draw_line(c, x0, y0, x1, y0);
+    draw_line(c, x0, y0, x0, y1);
+    draw_line(c, x1, y0, x1, y1);
+    draw_line(c, x0, y1, x1, y1);
+}
+
+void draw_circle(Canvas *c, const int x0, const int y0, const int r) {
+    const int width = c->width;
+    const int height = c->height;
+    char pen = c->pen;
+
+    for (int x = 0; x < width; x++){
+        for (int y = 0; y < height; y++){
+            if (sqrt((x-x0)*(x-x0) + (y-y0)*(y-y0)) <= r){
+                if (sqrt((x-x0)*(x-x0) + (y-y0)*(y-y0)) > r-1){
+                    c->canvas[x][y] = pen;
+                }
+            }
+        }
+    }
+}
+
 void save_history(const char *filename, History *his) {
     const char *default_history_file = "history.txt";
     if (filename == NULL)
@@ -255,6 +283,50 @@ Result interpret_command(const char *command, History *his, Canvas *c) {
 	draw_line(c,p[0],p[1],p[2],p[3]);
 	return LINE;
     }
+
+    if (strcmp(s, "rect") == 0){
+        int p[4] = {0}; // p[0]: x0, p[1]: y0, p[2]: x1, p[3]: x1 
+        char *b[4];
+        for (int i = 0 ; i < 4; i++){
+            b[i] = strtok(NULL, " ");
+            if (b[i] == NULL){
+            return ERRLACKARGS;
+            }
+        }
+        for (int i = 0 ; i < 4 ; i++){
+            char *e;
+            long v = strtol(b[i],&e, 10);
+            if (*e != '\0'){
+            return ERRNONINT;
+            }
+            p[i] = (int)v;
+        }
+
+        draw_rect(c,p[0],p[1],p[2],p[3]);
+        return RECT;
+    }
+
+    if (strcmp(s, "circle") == 0){
+    int p[3] = {0}; // p[0]: x0, p[1]: y0, p[2]: r
+    char *b[3];
+    for (int i = 0 ; i < 3; i++){
+        b[i] = strtok(NULL, " ");
+        if (b[i] == NULL){
+        return ERRLACKARGS;
+        }
+    }
+    for (int i = 0 ; i < 3 ; i++){
+        char *e;
+        long v = strtol(b[i],&e, 10);
+        if (*e != '\0'){
+        return ERRNONINT;
+        }
+        p[i] = (int)v;
+    }
+
+    draw_circle(c,p[0],p[1],p[2]);
+    return CIRCLE;
+    }
     
     if (strcmp(s, "save") == 0) {
 	s = strtok(NULL, " ");
@@ -293,6 +365,10 @@ char *strresult(Result res) {
 	return "history saved";
     case LINE:
 	return "1 line drawn";
+    case RECT:
+    return "1 rectangle drawn";
+    case CIRCLE:
+    return "1 circle drawn";
     case UNDO:
 	return "undo!";
     case UNKNOWN:
