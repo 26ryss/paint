@@ -44,7 +44,7 @@ void clear_screen(void);
 
 // enum for interpret_command results
 // interpret_command の結果をより詳細に分割
-typedef enum res{ EXIT, LINE, RECT, CIRCLE, FILL, ERASE, CHANGEPEN, CHANGECOLOR, LOAD, UNDO, REDO, SAVE, UNKNOWN, ERRNONINT, ERRLACKARGS, NOCOMMAND, NOFILE} Result;
+typedef enum res{ EXIT, LINE, RECT, CIRCLE, ROTATE, FILL, ERASE, CHANGEPEN, CHANGECOLOR, LOAD, UNDO, REDO, SAVE, UNKNOWN, ERRNONINT, ERRLACKARGS, NOCOMMAND, NOFILE} Result;
 // Result 型に応じて出力するメッセージを返す
 char *strresult(Result res);
 
@@ -352,6 +352,59 @@ Result interpret_command(const char *command, History *his, Canvas *c) {
     return CIRCLE;
     }
 
+    if (strcmp(s, "rotate") == 0) {
+        Command *q = his->begin;
+
+        if (q == NULL) {
+            return NOCOMMAND;
+        } else {
+            while (q->next != NULL) {
+                q = q->next;
+            }
+        }
+
+        char buf2[his->bufsize];
+        strcpy(buf2, q->str);
+        buf2[strlen(buf2) - 1] = 0; // remove the newline character at the end
+        const char *s2 = strtok(buf2, " ");
+
+        if (strcmp(s2, "rect") == 0) {
+            int p[4] = {0}; // p[0]: x0, p[1]: y0, p[2]: x1, p[3]: x1 
+            char *b[4];
+            for (int i = 0 ; i < 4; i++){
+                b[i] = strtok(NULL, " ");
+                if (b[i] == NULL){
+                return ERRLACKARGS;
+                }
+            }
+            for (int i = 0 ; i < 4 ; i++){
+                char *e;
+                long v = strtol(b[i],&e, 10);
+                if (*e != '\0'){
+                return ERRNONINT;
+                }
+                p[i] = (int)v;
+            }
+
+            for (int x = p[0]; x < p[0] + p[2] + 1; x++){
+                for (int y = p[1]; y < p[1] + p[3] + 1; y++){
+                    if (x == p[0] || x == p[0] + p[2] || y == p[1] || y == p[1] + p[3]) {
+                        if ( (x >= 0) && (x < c->width) && (y >= 0) && (y < c->height))
+                        c->canvas[x][y] = ' ';
+                    }
+                }
+            }
+            draw_rect(c,p[0],p[1],p[3],p[2]);
+
+            char command[his->bufsize];
+            sprintf(command, "rect %d %d %d %d\n", p[0], p[1], p[3], p[2]);
+            push_command(his, command);
+            return ROTATE;
+        } else {
+            return UNKNOWN;
+        }
+    }
+
     if (strcmp(s, "fill") == 0) {
         Command *q = his->begin;
 
@@ -553,6 +606,8 @@ char *strresult(Result res) {
     return "1 rectangle drawn";
     case CIRCLE:
     return "1 circle drawn";
+    case ROTATE:
+    return "rectangle rotated";
     case ERASE:
     return "area erased";
     case FILL:
