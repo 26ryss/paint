@@ -23,6 +23,8 @@ struct command{
     Command *next;
 };
 
+Command *prev = NULL;
+
 // Structure for history (2-D array)
 typedef struct {
     Command *begin;
@@ -42,7 +44,7 @@ void clear_screen(void);
 
 // enum for interpret_command results
 // interpret_command の結果をより詳細に分割
-typedef enum res{ EXIT, LINE, RECT, CIRCLE, FILL, ERASE, CHANGEPEN, CHANGECOLOR, LOAD, UNDO, SAVE, UNKNOWN, ERRNONINT, ERRLACKARGS, NOCOMMAND, NOFILE} Result;
+typedef enum res{ EXIT, LINE, RECT, CIRCLE, FILL, ERASE, CHANGEPEN, CHANGECOLOR, LOAD, UNDO, REDO, SAVE, UNKNOWN, ERRNONINT, ERRLACKARGS, NOCOMMAND, NOFILE} Result;
 // Result 型に応じて出力するメッセージを返す
 char *strresult(Result res);
 
@@ -517,12 +519,21 @@ Result interpret_command(const char *command, History *his, Canvas *c) {
 	    else{
 		q->next = NULL;
 	    }
-	    free(p->str);
-	    free(p);	
+	    prev = p;	
 	    return UNDO;
 	}
     }
     
+    if (strcmp(s, "redo") == 0) {
+        if (prev != NULL) {
+            interpret_command(prev->str, his, c);
+            push_command(his, prev->str);
+            return REDO;
+        } else {
+            return UNKNOWN;
+        }
+    }
+
     if (strcmp(s, "quit") == 0) {
 	return EXIT;
     }
@@ -554,6 +565,8 @@ char *strresult(Result res) {
     return "history loaded";
     case UNDO:
 	return "undo!";
+    case REDO:
+    return "redo!";
     case UNKNOWN:
 	return "error: unknown command";
     case ERRNONINT:
