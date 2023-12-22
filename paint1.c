@@ -346,8 +346,16 @@ Result interpret_command(const char *command, History *his, Canvas *c) {
         q = p;
         p = p->next;
 	    }
+        if (q == NULL) {
+		his->begin = NULL;
+	    }
+	    else{
+		q->next = NULL;
+	    }
+	    free(p->str);
+	    free(p);	
+	    return UNDO;
 	}
-	return UNDO;
     }
     
     if (strcmp(s, "quit") == 0) {
