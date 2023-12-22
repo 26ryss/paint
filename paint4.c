@@ -42,7 +42,7 @@ void clear_screen(void);
 
 // enum for interpret_command results
 // interpret_command の結果をより詳細に分割
-typedef enum res{ EXIT, LINE, RECT, CIRCLE, CHANGEPEN, CHANGECOLOR, LOAD, UNDO, SAVE, UNKNOWN, ERRNONINT, ERRLACKARGS, NOCOMMAND, NOFILE} Result;
+typedef enum res{ EXIT, LINE, RECT, CIRCLE, ERASE, CHANGEPEN, CHANGECOLOR, LOAD, UNDO, SAVE, UNKNOWN, ERRNONINT, ERRLACKARGS, NOCOMMAND, NOFILE} Result;
 // Result 型に応じて出力するメッセージを返す
 char *strresult(Result res);
 
@@ -105,7 +105,7 @@ int main(int argc, char **argv) {
 	clear_command();
 	printf("%s\n",strresult(r));
 	// LINEの場合はHistory構造体に入れる
-	if (r == LINE || r == RECT || r == CIRCLE || r == CHANGEPEN) {
+	if (r == LINE || r == RECT || r == CIRCLE || r == CHANGEPEN || r == CHANGECOLOR || r == ERASE) {
 	    push_command(&his, buf);
 	}
 	rewind_screen(2); // command results
@@ -350,6 +350,32 @@ Result interpret_command(const char *command, History *his, Canvas *c) {
     return CIRCLE;
     }
 
+    if (strcmp(s, "erase") == 0) {
+        int p[4] = {0}; // p[0]: x0, p[1]: y0, p[2]: width, p[3]: height
+        char *b[4];
+        for (int i = 0 ; i < 4; i++){
+            b[i] = strtok(NULL, " ");
+            if (b[i] == NULL){
+            return ERRLACKARGS;
+            }
+        }
+        for (int i = 0 ; i < 4 ; i++){
+            char *e;
+            long v = strtol(b[i],&e, 10);
+            if (*e != '\0'){
+            return ERRNONINT;
+            }
+            p[i] = (int)v;
+        }
+
+        for (int x = p[0]; x < p[0] + p[2]; x++){
+            for (int y = p[1]; y < p[1] + p[3]; y++){
+                if ( (x >= 0) && (x < c->width) && (y >= 0) && (y < c->height))
+                    c->canvas[x][y] = ' ';
+            }
+        }
+    }
+
     if (strcmp(s, "chpen") == 0) {
         char *b = strtok(NULL, " ");
         if (b == NULL){
@@ -440,6 +466,8 @@ char *strresult(Result res) {
     return "1 rectangle drawn";
     case CIRCLE:
     return "1 circle drawn";
+    case ERASE:
+    return "area erased";
     case CHANGEPEN:
     return "pen changed";
     case CHANGECOLOR:
